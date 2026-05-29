@@ -319,6 +319,14 @@
     <string name="only_specific_apps_are_routed_via_tailscale">Only specific apps are routed via Tailscale on this device. This setting is managed by your organization and cannot be changed by you. For more information, contact your network administrator.</string>
     <string name="switch_to_select_to_include">Switch to including</string>
     <string name="switch_to_select_to_exclude">Switch to excluding</string>
+    <string name="split_tunnel_import_list">Import List</string>
+    <string name="split_tunnel_export_list">Export List</string>
+    <string name="split_tunnel_import_error_invalid">Import failed: invalid file format</string>
+    <string name="split_tunnel_import_error_version">Import failed: unsupported version</string>
+    <string name="split_tunnel_export_error">Export failed</string>
+    <string name="split_tunnel_import_success">Import successful</string>
+    <string name="split_tunnel_export_success">Export successful</string>
+    <string name="split_tunnel_import_skipped">%1$d app(s) not installed and were skipped</string>
     <string name="switch_warning_dialog_title">Selected apps will be reset</string>
     <string name="switch_warning_dialog_description">By switching filters, all your previously selected applications will be reset. Please ensure that this is intended.</string>
     <string name="specifies_a_list_of_apps_that_will_be_excluded_from_tailscale_routes_and_dns_even_when_tailscale_is_running_all_other_apps_will_use_tailscale">Specifies a list of apps that will be excluded from Tailscale routes and DNS even when Tailscale is running. All other apps will use Tailscale.</string>

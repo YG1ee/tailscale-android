@@ -3,6 +3,7 @@
 
 package com.tailscale.ipn.ui.view
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -27,11 +28,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -41,7 +44,9 @@ import com.tailscale.ipn.App
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.util.Lists
 import com.tailscale.ipn.ui.util.set
+import com.tailscale.ipn.ui.viewModel.ImportResult
 import com.tailscale.ipn.ui.viewModel.SplitTunnelAppPickerViewModel
+import kotlinx.coroutines.flow.collect
 
 @Composable
 fun SplitTunnelAppPickerView(
@@ -54,8 +59,29 @@ fun SplitTunnelAppPickerView(
   val builtInDisallowedPackageNames: List<String> = App.get().builtInDisallowedPackageNames
   val mdmIncludedPackages by model.mdmIncludedPackages.collectAsState()
   val mdmExcludedPackages by model.mdmExcludedPackages.collectAsState()
+  val isMdmManaged =
+      mdmExcludedPackages.value?.isNotEmpty() == true ||
+          mdmIncludedPackages.value?.isNotEmpty() == true
   val showHeaderMenu by model.showHeaderMenu.collectAsState()
   val showSwitchDialog by model.showSwitchDialog.collectAsState()
+  val context = LocalContext.current
+
+  LaunchedEffect(model.importResult) {
+    model.importResult.collect { result ->
+      val message =
+          when (result) {
+            is ImportResult.Success ->
+                if (result.skippedCount == 0) {
+                  context.getString(R.string.split_tunnel_import_success)
+                } else {
+                  context.getString(R.string.split_tunnel_import_skipped, result.skippedCount)
+                }
+            ImportResult.ExportSuccess -> context.getString(R.string.split_tunnel_export_success)
+            is ImportResult.Error -> result.message
+          }
+      Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+    }
+  }
 
   if (showSwitchDialog) {
     SwitchAlertDialog(
@@ -75,7 +101,11 @@ fun SplitTunnelAppPickerView(
             onBack = backToSettings,
             actions = {
               Row {
-                FusMenu(viewModel = model, onSwitchClick = { model.showSwitchDialog.set(true) })
+                FusMenu(
+                    viewModel = model,
+                    isMdmManaged = isMdmManaged,
+                    onSwitchClick = { model.showSwitchDialog.set(true) },
+                )
                 IconButton(onClick = { model.showHeaderMenu.set(!showHeaderMenu) }) {
                   Icon(Icons.Default.MoreVert, "menu")
                 }
@@ -177,7 +207,11 @@ fun SplitTunnelAppPickerView(
 }
 
 @Composable
-fun FusMenu(viewModel: SplitTunnelAppPickerViewModel, onSwitchClick: (() -> Unit)) {
+fun FusMenu(
+    viewModel: SplitTunnelAppPickerViewModel,
+    isMdmManaged: Boolean,
+    onSwitchClick: (() -> Unit),
+) {
   val expanded by viewModel.showHeaderMenu.collectAsState()
   val allowSelected by viewModel.allowSelected.collectAsState()
 
@@ -196,6 +230,22 @@ fun FusMenu(viewModel: SplitTunnelAppPickerViewModel, onSwitchClick: (() -> Unit
                 if (allowSelected) R.string.switch_to_select_to_exclude
                 else R.string.switch_to_select_to_include),
     )
+    if (!isMdmManaged) {
+      MenuItem(
+          onClick = {
+            viewModel.showHeaderMenu.set(false)
+            viewModel.onImportRequested()
+          },
+          text = stringResource(R.string.split_tunnel_import_list),
+      )
+      MenuItem(
+          onClick = {
+            viewModel.showHeaderMenu.set(false)
+            viewModel.onExportRequested()
+          },
+          text = stringResource(R.string.split_tunnel_export_list),
+      )
+    }
   }
 }
 

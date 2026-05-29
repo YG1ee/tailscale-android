@@ -732,6 +732,22 @@ open class UninitializedApp : Application() {
     this.restartVPN()
   }
 
+  fun applyImportedPackages(mode: String, packages: List<String>) {
+    if (packages.any { it.isEmpty() }) {
+      TSLog.e(TAG, "applyImportedPackages called with empty packageName(s)")
+      return
+    }
+
+    val allowSelected = mode == "include"
+    getUnencryptedPrefs()
+        .edit()
+        .putBoolean(ALLOW_SELECTED_APPS_KEY, allowSelected)
+        .putStringSet(SELECTED_APPS_KEY, packages.toSet())
+        .apply()
+
+    this.restartVPN()
+  }
+
   fun switchUserSelectedPackages() {
     getUnencryptedPrefs()
         .edit()
