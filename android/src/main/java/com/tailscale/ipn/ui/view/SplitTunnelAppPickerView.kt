@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -133,7 +134,22 @@ fun SplitTunnelAppPickerView(
           }
         } else {
           items(installedApps, key = { it.packageName }) { app ->
+            val isSelected = selectedPackageNames.contains(app.packageName)
+            val isEnabled = !builtInDisallowedPackageNames.contains(app.packageName)
+            val onToggle = {
+              if (isSelected) {
+                model.deselect(packageName = app.packageName)
+              } else {
+                model.select(packageName = app.packageName)
+              }
+            }
             ListItem(
+                modifier =
+                    Modifier.toggleable(
+                        value = isSelected,
+                        enabled = isEnabled,
+                        onValueChange = { onToggle() },
+                    ),
                 headlineContent = { Text(app.name, fontWeight = FontWeight.SemiBold) },
                 leadingContent = {
                   Image(
@@ -156,15 +172,9 @@ fun SplitTunnelAppPickerView(
                 },
                 trailingContent = {
                   Checkbox(
-                      checked = selectedPackageNames.contains(app.packageName),
-                      enabled = !builtInDisallowedPackageNames.contains(app.packageName),
-                      onCheckedChange = { checked ->
-                        if (checked) {
-                          model.select(packageName = app.packageName)
-                        } else {
-                          model.deselect(packageName = app.packageName)
-                        }
-                      },
+                      checked = isSelected,
+                      enabled = isEnabled,
+                      onCheckedChange = null,
                   )
                 },
             )
