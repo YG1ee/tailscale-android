@@ -327,6 +327,9 @@
     <string name="split_tunnel_import_success">Import successful</string>
     <string name="split_tunnel_export_success">Export successful</string>
     <string name="split_tunnel_import_skipped">%1$d app(s) not installed and were skipped</string>
+    <string name="split_tunnel_import_exit_node_skipped_title">Exit node not applied</string>
+    <string name="split_tunnel_import_exit_node_skipped_reason_not_found">The exit node from the imported list was not found in your network</string>
+    <string name="split_tunnel_import_exit_node_skipped_reason_unavailable">The exit node from the imported list is not an exit node</string>
     <string name="switch_warning_dialog_title">Selected apps will be reset</string>
     <string name="switch_warning_dialog_description">By switching filters, all your previously selected applications will be reset. Please ensure that this is intended.</string>
     <string name="specifies_a_list_of_apps_that_will_be_excluded_from_tailscale_routes_and_dns_even_when_tailscale_is_running_all_other_apps_will_use_tailscale">Specifies a list of apps that will be excluded from Tailscale routes and DNS even when Tailscale is running. All other apps will use Tailscale.</string>

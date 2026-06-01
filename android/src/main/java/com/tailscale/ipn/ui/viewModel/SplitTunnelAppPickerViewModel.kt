@@ -10,10 +10,14 @@ import com.tailscale.ipn.App
 import com.tailscale.ipn.R
 import com.tailscale.ipn.mdm.MDMSettings
 import com.tailscale.ipn.mdm.SettingState
+import com.tailscale.ipn.ui.localapi.Client
+import com.tailscale.ipn.ui.model.Ipn
 import com.tailscale.ipn.ui.model.SplitTunnelExportPayload
 import com.tailscale.ipn.ui.model.validate
+import com.tailscale.ipn.ui.notifier.Notifier
 import com.tailscale.ipn.ui.util.InstalledApp
 import com.tailscale.ipn.ui.util.InstalledAppsManager
+import com.tailscale.ipn.ui.util.classifyExitNode
 import com.tailscale.ipn.ui.util.filterToInstalled
 import com.tailscale.ipn.ui.util.set
 import kotlinx.coroutines.Dispatchers
@@ -33,9 +37,15 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 /** Result of an import operation. */
+/** Describes why an imported exit-node could not be applied. */
+enum class ExitNodeSkipReason { NOT_FOUND, UNAVAILABLE }
+
 sealed class ImportResult {
   /** Import succeeded; [skippedCount] packages were not installed and were skipped. */
   data class Success(val skippedCount: Int) : ImportResult()
+
+  /** Import partially succeeded; split-tunnel import worked, exit-node import was skipped. */
+  data class PartialSuccess(val skippedCount: Int, val exitNodeSkipReason: ExitNodeSkipReason) : ImportResult()
 
   /** Export succeeded. */
   data object ExportSuccess : ImportResult()
@@ -43,6 +53,8 @@ sealed class ImportResult {
   /** Import failed with a human-readable [message]. */
   data class Error(val message: String) : ImportResult()
 }
+
+private data class SplitTunnelApplyResult(val skippedCount: Int, val exitNodeId: String?)
 
 class SplitTunnelAppPickerViewModel : ViewModel() {
   val installedAppsManager = InstalledAppsManager(packageManager = App.get().packageManager)
@@ -130,18 +142,44 @@ class SplitTunnelAppPickerViewModel : ViewModel() {
         return@launch
       }
 
-      applyImport(payload)
+      val result = applyImport(payload)
+      val skippedCount = result.skippedCount
+      val exitNodeId = result.exitNodeId
+
+      if (exitNodeId == null) {
+        _importResult.tryEmit(ImportResult.Success(skippedCount))
+        return@launch
+      }
+
+      val peers = Notifier.netmap.value?.Peers ?: emptyList()
+      val skipReason = classifyExitNode(exitNodeId, peers)
+      if (skipReason != null) {
+        _importResult.tryEmit(ImportResult.PartialSuccess(skippedCount, skipReason))
+        return@launch
+      }
+
+      val prefsOut = Ipn.MaskedPrefs()
+      prefsOut.ExitNodeID = exitNodeId
+      Client(viewModelScope).editPrefs(prefsOut) { applyResult ->
+        if (applyResult.isFailure) {
+          _importResult.tryEmit(
+              ImportResult.PartialSuccess(skippedCount, ExitNodeSkipReason.UNAVAILABLE))
+        } else {
+          _importResult.tryEmit(ImportResult.Success(skippedCount))
+        }
+      }
     }
   }
 
-  private fun applyImport(payload: SplitTunnelExportPayload) {
+  private fun applyImport(payload: SplitTunnelExportPayload): SplitTunnelApplyResult {
     val installedPackages = installedAppsManager.fetchInstalledApps().map { it.packageName }.toSet()
     val filteredPackages = filterToInstalled(payload.packages, installedPackages)
     val skippedCount = payload.packages.size - filteredPackages.size
+    val exitNodeId: String? = payload.exitNode?.takeIf { it.isNotBlank() }
 
     App.get().applyImportedPackages(payload.mode, filteredPackages)
     initSelectedPackageNames()
-    _importResult.tryEmit(ImportResult.Success(skippedCount))
+    return SplitTunnelApplyResult(skippedCount, exitNodeId)
   }
 
   fun onExportFileSelected(uri: Uri) {
@@ -151,7 +189,8 @@ class SplitTunnelAppPickerViewModel : ViewModel() {
       try {
         val mode = if (app.allowSelectedPackages()) "include" else "exclude"
         val packages = app.selectedPackageNames() - app.builtInDisallowedPackageNames.toSet()
-        val payload = SplitTunnelExportPayload(version = 1, mode = mode, packages = packages)
+        val exitNode = app.selectedExitNodeID()
+        val payload = SplitTunnelExportPayload(version = 1, mode = mode, packages = packages, exitNode = exitNode)
         val json = Json.encodeToString(SplitTunnelExportPayload.serializer(), payload)
         app.contentResolver.openOutputStream(uri)?.use { stream ->
           stream.write(json.toByteArray(Charsets.UTF_8))

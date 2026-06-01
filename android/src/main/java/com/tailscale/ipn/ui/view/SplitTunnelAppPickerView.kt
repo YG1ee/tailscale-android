@@ -44,6 +44,7 @@ import com.tailscale.ipn.App
 import com.tailscale.ipn.R
 import com.tailscale.ipn.ui.util.Lists
 import com.tailscale.ipn.ui.util.set
+import com.tailscale.ipn.ui.viewModel.ExitNodeSkipReason
 import com.tailscale.ipn.ui.viewModel.ImportResult
 import com.tailscale.ipn.ui.viewModel.SplitTunnelAppPickerViewModel
 import kotlinx.coroutines.flow.collect
@@ -77,6 +78,27 @@ fun SplitTunnelAppPickerView(
                   context.getString(R.string.split_tunnel_import_skipped, result.skippedCount)
                 }
             ImportResult.ExportSuccess -> context.getString(R.string.split_tunnel_export_success)
+            is ImportResult.PartialSuccess -> {
+                val baseMessage =
+                    if (result.skippedCount == 0) {
+                      context.getString(R.string.split_tunnel_import_success)
+                    } else {
+                      context.getString(
+                          R.string.split_tunnel_import_skipped, result.skippedCount)
+                    }
+                val exitNodeTitle =
+                    context.getString(R.string.split_tunnel_import_exit_node_skipped_title)
+                val exitNodeReason =
+                    when (result.exitNodeSkipReason) {
+                      ExitNodeSkipReason.NOT_FOUND ->
+                          context.getString(
+                              R.string.split_tunnel_import_exit_node_skipped_reason_not_found)
+                      ExitNodeSkipReason.UNAVAILABLE ->
+                          context.getString(
+                              R.string.split_tunnel_import_exit_node_skipped_reason_unavailable)
+                    }
+                "$baseMessage\n$exitNodeTitle\n$exitNodeReason"
+              }
             is ImportResult.Error -> result.message
           }
       Toast.makeText(context, message, Toast.LENGTH_LONG).show()
