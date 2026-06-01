@@ -3,13 +3,17 @@
 
 package com.tailscale.ipn.ui.model
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class SplitTunnelExportPayload(
     val version: Int,
     val mode: String,
     val packages: List<String>,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val exitNode: String? = null,
 )
 
 fun SplitTunnelExportPayload.validate(): Result<SplitTunnelExportPayload> {

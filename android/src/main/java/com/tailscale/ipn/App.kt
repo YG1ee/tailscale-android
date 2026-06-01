@@ -763,6 +763,10 @@ open class UninitializedApp : Application() {
         ?: emptyList()
   }
 
+  fun selectedExitNodeID(): String? {
+    return Notifier.prefs.value?.selectedExitNodeID
+  }
+
   fun allowSelectedPackages(): Boolean {
     return getUnencryptedPrefs().getBoolean(ALLOW_SELECTED_APPS_KEY, false)
   }
