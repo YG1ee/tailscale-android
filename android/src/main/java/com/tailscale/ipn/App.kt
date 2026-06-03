@@ -764,7 +764,8 @@ open class UninitializedApp : Application() {
   }
 
   fun selectedExitNodeID(): String? {
-    return Notifier.prefs.value?.selectedExitNodeID
+    val prefs = Notifier.prefs.value
+    return prefs?.activeExitNodeID ?: prefs?.selectedExitNodeID
   }
 
   fun allowSelectedPackages(): Boolean {
