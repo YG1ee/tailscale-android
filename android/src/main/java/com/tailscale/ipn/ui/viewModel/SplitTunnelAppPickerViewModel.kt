@@ -192,7 +192,7 @@ class SplitTunnelAppPickerViewModel : ViewModel() {
         val exitNode = app.selectedExitNodeID()
         val payload = SplitTunnelExportPayload(version = 1, mode = mode, packages = packages, exitNode = exitNode)
         val json = Json.encodeToString(SplitTunnelExportPayload.serializer(), payload)
-        app.contentResolver.openOutputStream(uri)?.use { stream ->
+        app.contentResolver.openOutputStream(uri, "rwt")?.use { stream ->
           stream.write(json.toByteArray(Charsets.UTF_8))
         }
             ?: run {
