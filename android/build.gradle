@@ -38,7 +38,7 @@ android {
         minSdkVersion 26
         targetSdkVersion 35
         versionCode 468
-        versionName getVersionProperty("VERSION_LONG")
+        versionName getVersionProperty("VERSION_LONG") + "-a" + getGitHash()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
         // This setting, which defaults to 'true', will cause Tailscale to fall
@@ -193,4 +193,18 @@ def getVersionProperty(key) {
     def versionProps = new Properties()
     versionProps.load(project.file('../tailscale.version').newDataInputStream())
     return versionProps.getProperty(key).replaceAll('^\"|\"$', '')
+}
+
+def getGitHash() {
+    try {
+        def stdout = new ByteArrayOutputStream()
+        exec {
+            commandLine 'git', 'rev-parse', '--short', 'HEAD'
+            workingDir = project.rootDir.parentFile
+            standardOutput = stdout
+        }
+        return stdout.toString().trim()
+    } catch (Exception ignored) {
+        return "nogit"
+    }
 }
