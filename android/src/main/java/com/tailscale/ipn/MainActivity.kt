@@ -101,6 +101,7 @@ import com.tailscale.ipn.ui.viewModel.MainViewModelFactory
 import com.tailscale.ipn.ui.viewModel.PermissionsViewModel
 import com.tailscale.ipn.ui.viewModel.PingViewModel
 import com.tailscale.ipn.ui.viewModel.SettingsNav
+import com.tailscale.ipn.ui.viewModel.SplitTunnelAppPickerViewModel
 import com.tailscale.ipn.util.ShareFileHelper
 import com.tailscale.ipn.util.TSLog
 import kotlinx.coroutines.Dispatchers
@@ -114,8 +115,33 @@ class MainActivity : ComponentActivity() {
   private lateinit var vpnPermissionLauncher: ActivityResultLauncher<Intent>
   private lateinit var appViewModel: AppViewModel
   private lateinit var viewModel: MainViewModel
+  private lateinit var exportListLauncher: ActivityResultLauncher<String>
+  private lateinit var importListLauncher: ActivityResultLauncher<Array<String>>
+  private var splitTunnelLaunchersBound = false
 
   val permissionsViewModel: PermissionsViewModel by viewModels()
+
+  private fun splitTunnelViewModel(): SplitTunnelAppPickerViewModel {
+    return ViewModelProvider(this).get(SplitTunnelAppPickerViewModel::class.java)
+  }
+
+  private fun ensureSplitTunnelLaunchersBound() {
+    if (splitTunnelLaunchersBound) return
+    splitTunnelLaunchersBound = true
+    val splitTunnelViewModel = splitTunnelViewModel()
+
+    lifecycleScope.launch {
+      splitTunnelViewModel.requestExport.collect {
+        exportListLauncher.launch("tailscale-split-tunnel.json")
+      }
+    }
+
+    lifecycleScope.launch {
+      splitTunnelViewModel.requestImport.collect {
+        importListLauncher.launch(arrayOf("application/json"))
+      }
+    }
+  }
 
   companion object {
     private const val TAG = "Main Activity"
@@ -223,6 +249,21 @@ class MainActivity : ComponentActivity() {
 
     appViewModel.directoryPickerLauncher = directoryPickerLauncher
 
+    exportListLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) {
+            uri: Uri? ->
+          if (uri != null) {
+            splitTunnelViewModel().onExportFileSelected(uri)
+          }
+        }
+
+    importListLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+          if (uri != null) {
+            splitTunnelViewModel().onImportFileSelected(uri)
+          }
+        }
+
     setContent {
       var showDialog by remember { mutableStateOf(false) }
 
@@ -303,7 +344,10 @@ class MainActivity : ComponentActivity() {
                           onNavigateToBugReport = { navController.navigate("bugReport") },
                           onNavigateToAbout = { navController.navigate("about") },
                           onNavigateToDNSSettings = { navController.navigate("dnsSettings") },
-                          onNavigateToSplitTunneling = { navController.navigate("splitTunneling") },
+                          onNavigateToSplitTunneling = {
+                            ensureSplitTunnelLaunchersBound()
+                            navController.navigate("splitTunneling")
+                          },
                           onNavigateToTailnetLock = { navController.navigate("tailnetLock") },
                           onNavigateToSubnetRouting = { navController.navigate("subnetRouting") },
                           onNavigateToMDMSettings = { navController.navigate("mdmSettings") },
@@ -372,7 +416,9 @@ class MainActivity : ComponentActivity() {
                       }
                   composable("bugReport") { BugReportView(backTo("settings")) }
                   composable("dnsSettings") { DNSSettingsView(backTo("settings")) }
-                  composable("splitTunneling") { SplitTunnelAppPickerView(backTo("settings")) }
+                  composable("splitTunneling") {
+                    SplitTunnelAppPickerView(backTo("settings"), model = splitTunnelViewModel())
+                  }
                   composable("tailnetLock") { TailnetLockSetupView(backTo("settings")) }
                   composable("subnetRouting") { SubnetRoutingView(backTo("settings")) }
                   composable("about") { AboutView(backTo("settings")) }
