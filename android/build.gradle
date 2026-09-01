@@ -11,7 +11,7 @@ buildscript {
         }
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.6.1'
+        classpath 'com.android.tools.build:gradle:8.13.0'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "org.jetbrains.kotlin:kotlin-serialization:$kotlin_version"
         classpath("com.ncorti.ktfmt.gradle:plugin:0.17.0")
@@ -32,12 +32,21 @@ apply plugin: 'org.jetbrains.kotlin.plugin.serialization'
 apply plugin: 'com.ncorti.ktfmt.gradle'
 
 android {
+    def androidApiLevel = providers.gradleProperty("androidApiLevel").get().toInteger()
+
     ndkVersion "23.1.7779620"
-    compileSdkVersion 34
+    compileSdkVersion androidApiLevel
     defaultConfig {
         minSdkVersion 26
-        targetSdkVersion 35
-        versionCode 615
+        targetSdkVersion androidApiLevel
+
+        // VERSION_CODE_BASE is minutes since the Unix epoch, times 10. The
+        // final digit is reserved for the platform: 0 for phone/tablet and 1
+        // for Android TV. Release builds pass VERSION_CODE_BASE from the
+        // Makefile so both variants share the same base. Other builds fall
+        // back to the current time so local/debug Gradle invocations continue
+        // to work without extra arguments.
+        versionCode computeVersionCode()
         versionName getVersionProperty("VERSION_LONG") + "-a" + getGitHash()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
@@ -79,16 +88,16 @@ android {
     buildTypes {
         applicationTest {
             initWith debug
-            manifestPlaceholders.leanbackRequired = false
+            manifestPlaceholders.leanbackRequired = isTV()
             buildConfigField "String", "GITHUB_USERNAME", "\"" + getLocalProperty("githubUsername", "")+"\""
             buildConfigField "String", "GITHUB_PASSWORD", "\"" + getLocalProperty("githubPassword", "")+"\""
             buildConfigField "String", "GITHUB_2FA_SECRET", "\"" + getLocalProperty("github2FASecret", "")+"\""
         }
         debug {
-            manifestPlaceholders.leanbackRequired = false
+            manifestPlaceholders.leanbackRequired = isTV()
         }
         release {
-            manifestPlaceholders.leanbackRequired = false
+            manifestPlaceholders.leanbackRequired = isTV()
 
             minifyEnabled true
 
@@ -97,10 +106,6 @@ android {
             proguardFiles getDefaultProguardFile(
                     'proguard-android-optimize.txt'),
                     'proguard-rules.pro'
-        }
-        release_tv {
-            initWith release
-            manifestPlaceholders.leanbackRequired = true
         }
     }
 
@@ -114,6 +119,7 @@ dependencies {
     implementation "androidx.browser:browser:1.8.0"
     implementation "androidx.security:security-crypto:1.1.0-alpha06"
     implementation "androidx.work:work-runtime:2.9.1"
+    implementation "androidx.work:work-runtime-ktx:2.9.1"
 
     // Kotlin dependencies.
     implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3"
@@ -160,7 +166,6 @@ dependencies {
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
     implementation 'androidx.test.uiautomator:uiautomator:2.3.0'
 
-
     // Authentication only for tests
     androidTestImplementation 'dev.turingcomplete:kotlin-onetimepassword:2.4.0'
     androidTestImplementation 'commons-codec:commons-codec:1.16.1'
@@ -193,7 +198,27 @@ def getVersionProperty(key) {
     //      make tailscale.version
     def versionProps = new Properties()
     versionProps.load(project.file('../tailscale.version').newDataInputStream())
-    return versionProps.getProperty(key).replaceAll('^\"|\"$', '')
+    return versionProps.getProperty(key).replaceAll('^"|"$', '')
+}
+
+def computeVersionCode() {
+    def baseProperty = project.findProperty('VERSION_CODE_BASE')
+
+    // Direct/local Gradle invocations may not come through the Makefile. Keep
+    // those builds working by deriving a monotonic base from wall-clock time.
+    def base = baseProperty != null
+            ? baseProperty as long
+            : (System.currentTimeMillis() / 60000L) * 10L
+
+    // 0 for Android, 1 for Android TV. This keeps the two binaries distinguishable
+    // in the Play Store while sharing a release base.
+    def platform = isTV() ? 1 : 0
+
+    return (base + platform) as int
+}
+
+def isTV() {
+    return project.findProperty('PLATFORM')?.toString() == 'tv'
 }
 
 def getGitHash() {
